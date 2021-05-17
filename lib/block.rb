@@ -48,7 +48,15 @@ class Block
   # ==============
 
   def == (other)
-    top == other.top && bottom == other.bottom
+    if other.is_a? Array
+      other.each do |time_block|
+        return false if top != time_block.start && bottom != time_block.end
+      end
+
+      return true
+    elsif other.is_a? Block
+      top == other.start && bottom == other.end
+    end
   end
 
   def <=> (other)
@@ -89,6 +97,10 @@ class Block
 
   def overlaps? (other)
     include?(other.top) || other.include?(top)
+  end
+
+  def no_overlap? (other)
+    top >= other.end || bottom <= other.start
   end
 
   # ==============
@@ -134,13 +146,45 @@ class Block
   # Return the result of adding the other Block (or Blocks) to self.
 
   def add (other)
-    # Implement.
+    if other.is_a? Array
+      [Block.new([top, arr_min].min, [bottom, arr_max].max)]
+    elsif other.is_a? Block
+      if overlaps? other
+        [Block.new([top, other.start].min, [bottom, other.end].max)]
+      else
+        [other, self]
+      end
+    end
   end
   
   # Return the result of subtracting the other Block (or Blocks) from self.
 
   def subtract (other)
-    # Implement.
+    if other.is_a? Block
+      return [] if self == other
+      return [self] if no_overlap?(other)
+
+      if covers?(other)
+        if intersects_bottom?(other)
+          return [Block.new(other.end, bottom)]
+        elsif intersects_top?(other)
+          return [Block.new(top, other.start)]
+        end
+      end
+
+      return [] if other.surrounds?(self) || intersects_bottom?(other) || other.intersects_bottom?(self)
+      [Block.new([top, other.start].min, [top, other.start].max), Block.new([bottom, other.end].min, [bottom, other.end].max)]
+    elsif other.is_a? Array
+      new_arr = []
+
+      (0...(other.length - 1)).each do |range_index|
+        if other[range_index].no_overlap?(other[range_index + 1]) && overlaps?(other[range_index]) && overlaps?(other[range_index + 1])
+          new_arr += [Block.new(other[range_index].end, other[range_index + 1].start)]
+        end
+      end
+
+      new_arr
+    end
   end
 
   alias :- :subtract
@@ -160,6 +204,6 @@ class Block
   end
 
   def merge (others)
-    # Implement.
+    Block.merge([self, *others])
   end
 end
